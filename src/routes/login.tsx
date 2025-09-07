@@ -9,11 +9,24 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { useMutation } from '@tanstack/react-query'
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'react-toastify'
 
 export const Route = createFileRoute('/login')({
+  beforeLoad: async () => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
   component: RouteComponent,
 })
 
@@ -22,15 +35,41 @@ function RouteComponent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const API_URL = import.meta.env.VITE_API_URL
+  const navigate = useNavigate()
+
+  const loginMutation = useMutation({
+    mutationFn: async (data: { email: string; password: string }) => {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) {
+        throw new Error('Login failed')
+      }
+      return response.json()
+    },
+    onSuccess: (response) => {
+      if (response.status === true) {
+        localStorage.setItem('token', 'Bearer ' + response.data.token)
+        toast.success('Login successful!')
+        navigate({ to: '/dashboard' })
+      } else {
+        toast.error('Login failed: ' + response.message)
+      }
+    },
+    onError: (error) => {
+      console.error('Login error:', error)
+    },
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
-    // Simulate login process
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    console.log('Login attempt:', { email, password })
+    loginMutation.mutate({ email, password })
     setIsLoading(false)
   }
   return (
